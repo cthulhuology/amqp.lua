@@ -22,10 +22,12 @@ use.  These have only been tested on Mac OS X at the time of writing, but should
 Getting Started:
 ================
 
+```lua
   local amqp = require('amqp')
   amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
   amqp.send("test","test","this is a test")
   amqp.disconnect()
+```
 
 This sample code will connect to a RabbitMQ server and send a message "this is a test" to the exchange "test" with a
 routing key of "test".  It connects with the default credential for most RabbitMQ servers, but you could easily specify
