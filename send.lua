@@ -1,3 +1,4 @@
+#!/usr/bin/env luajit 
 
 amqp = require('amqp')
 
