@@ -129,19 +129,31 @@ local rabbitmq = ffi.load('rabbitmq')
 amqp.ffi = ffi
 amqp.rabbitmq = rabbitmq
 
+function amqp.die_on_error(reply)
+	print(reply)
+	print(reply.reply_type)
+        if (reply.reply_type == rabbitmq.AMQP_RESPONSE_LIBRARY_EXCEPTION or reply.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) then
+		print("Error: " .. ffi.string(rabbitmq.amqp_error_string(reply.library_error)))
+	end
+	return reply
+end
+
 function amqp.connect(url) 
 	amqp.info = ffi.new('struct amqp_connection_info')
 	local buffer = ffi.new('char[?]', #url)
 	ffi.copy(buffer,url)
-	print("Connecting to " .. url)
 	rabbitmq.amqp_parse_url(buffer,amqp.info)
 	amqp.connection = rabbitmq.amqp_new_connection()	
 	amqp.socket = rabbitmq.amqp_open_socket(amqp.info.host,amqp.info.port)
 	rabbitmq.amqp_set_sockfd(amqp.connection,amqp.socket)
-	rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password)
-	amqp.channel = rabbitmq.amqp_get_channel_max(amqp.connection) + 1
+	if (ffi.string(amqp.info.vhost) == "" ) then
+		amqp.info.vhost = ffi.new('char[?]',1)
+		ffi.copy(amqp.info.vhost,"/")
+	end
+	amqp.die_on_error(rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password))
+	amqp.channel = 1
 	rabbitmq.amqp_channel_open(amqp.connection,amqp.channel)
-	rabbitmq.amqp_get_rpc_reply(amqp.connection)	-- ignore it for now
+	amqp.die_on_error(rabbitmq.amqp_get_rpc_reply(amqp.connection))	-- process a channel open error
 end
 
 function amqp.user() 
