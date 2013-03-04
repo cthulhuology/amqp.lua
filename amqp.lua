@@ -137,10 +137,6 @@ function amqp.die_on_error(reply,message)
 	return reply
 end
 
-function amqp.properties()
-	return 
-end
-
 function amqp.connect(url) 
 	amqp.info = ffi.new('struct amqp_connection_info')
 	local buffer = ffi.new('char[?]', #url)
