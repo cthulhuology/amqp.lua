@@ -5,6 +5,7 @@
 
 module("amqp",package.seeall)
 
+
 local amqp = { 
 	AMQP_PROTOCOL_VERSION_MAJOR = 0, 
 	AMQP_PROTOCOL_VERSION_MINOR = 9,
@@ -129,13 +130,15 @@ local rabbitmq = ffi.load('rabbitmq')
 amqp.ffi = ffi
 amqp.rabbitmq = rabbitmq
 
-function amqp.die_on_error(reply)
-	print(reply)
-	print(reply.reply_type)
+function amqp.die_on_error(reply,message)
         if (reply.reply_type == rabbitmq.AMQP_RESPONSE_LIBRARY_EXCEPTION or reply.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) then
-		print("Error: " .. ffi.string(rabbitmq.amqp_error_string(reply.library_error)))
+		print(message .. ": " .. ffi.string(rabbitmq.amqp_error_string(reply.library_error)))
 	end
 	return reply
+end
+
+function amqp.properties()
+	return 
 end
 
 function amqp.connect(url) 
@@ -150,10 +153,26 @@ function amqp.connect(url)
 		amqp.info.vhost = ffi.new('char[?]',1)
 		ffi.copy(amqp.info.vhost,"/")
 	end
-	amqp.die_on_error(rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password))
+	amqp.die_on_error(rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password), "Failed to login")
 	amqp.channel = 1
 	rabbitmq.amqp_channel_open(amqp.connection,amqp.channel)
-	amqp.die_on_error(rabbitmq.amqp_get_rpc_reply(amqp.connection))	-- process a channel open error
+end
+
+function amqp.send(exchange,routing_key,message)
+	local props = ffi.new('struct amqp_basic_properties_t_')
+	props._flags = bit.bor(amqp.AMQP_BASIC_CONTENT_TYPE_FLAG, amqp.AMQP_BASIC_DELIVERY_MODE_FLAG)
+	props.content_type = rabbitmq.amqp_cstring_bytes("text/plain")
+	props.delivery_mode = 2
+	local ex_buffer = rabbitmq.amqp_cstring_bytes(exchange)
+	local rk_buffer = rabbitmq.amqp_cstring_bytes(routing_key)
+	local msg_buffer = rabbitmq.amqp_cstring_bytes(message)
+	rabbitmq.amqp_basic_publish(amqp.connection,amqp.channel,ex_buffer,rk_buffer,0,0,props,msg_buffer)
+end
+
+function amqp.disconnect()
+	rabbitmq.amqp_channel_close(amqp.connection, 1, amqp.AMQP_REPLY_SUCCESS)
+  	rabbitmq.amqp_connection_close(amqp.connection, amqp.AMQP_REPLY_SUCCESS)
+  	rabbitmq.amqp_destroy_connection(amqp.connection)
 end
 
 function amqp.user() 
