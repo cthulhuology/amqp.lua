@@ -25,12 +25,13 @@
 
 amqp = require('amqp')
 
-message = arg[3]	-- assume we're getting it on the command line
-if #arg < 3 then
-	message = io.stdin:read('*a')
-elseif #arg < 2 then
+if #arg < 2 then
 	print("Usage: send.lua exchange routing_key [message]")
 	os.exit()
+elseif #arg < 3 then
+	message = io.stdin:read('*a')
+else 
+	message = arg[3]	-- assume we're getting it on the command line
 end
 
 amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
