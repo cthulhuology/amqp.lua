@@ -25,16 +25,16 @@
 
 amqp = require('amqp')
 
-message = arg[3]	-- assume we're getting it on the command line
 if #arg < 3 then
-	message = io.stdin:read('*a')
-elseif #arg < 2 then
-	print("Usage: send.lua exchange routing_key [message]")
+	print("Usage: recv.lua exchange routing_key queue")
 	os.exit()
 end
 
 amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
 
-amqp.send(arg[1],arg[2],message)
+amqp.receive(arg[1],arg[2],arg[3])
 
-amqp.disconnect()
+while true do
+	amqp.wait(function(x) print("[" .. x .. "]") end)
+end
+

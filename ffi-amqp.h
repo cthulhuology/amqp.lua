@@ -58,10 +58,10 @@ typedef int amqp_boolean_t;
 typedef uint32_t amqp_method_number_t;
 typedef uint32_t amqp_flags_t;
 typedef uint16_t amqp_channel_t;
-typedef struct { size_t len; void* bytes; } amqp_bytes_t;
-typedef struct { uint8_t decimal; uint32_t value; } amqp_decimal_t;
-typedef struct { int num_entries; struct amqp_table_entry_t_ *entries; } amqp_table_t;
-typedef struct { int num_entries; struct amqp_field_value_t_ *entries; } amqp_array_t;
+typedef struct amqp_bytes_t_ { size_t len; void* bytes; } amqp_bytes_t;
+typedef struct amqp_decimal_t_ { uint8_t decimal; uint32_t value; } amqp_decimal_t;
+typedef struct amqp_table_t_ { int num_entries; struct amqp_table_entry_t_ *entries; } amqp_table_t;
+typedef struct amqp_array_t_ { int num_entries; struct amqp_field_value_t_ *entries; } amqp_array_t;
 
 typedef struct amqp_field_value_t_ { 
 	uint8_t kind; 
@@ -285,7 +285,7 @@ typedef struct {
 	amqp_table_t arguments;
 } amqp_queue_declare_t;
 
-typedef struct {
+typedef struct amqp_queue_declare_ok_t_ {
 	amqp_bytes_t queue;
 	uint32_t message_count;
 	uint32_t consumer_count;
@@ -598,3 +598,6 @@ amqp_tx_select_ok_t * amqp_tx_select(amqp_connection_state_t state, amqp_channel
 amqp_tx_commit_ok_t * amqp_tx_commit(amqp_connection_state_t state, amqp_channel_t channel);
 amqp_tx_rollback_ok_t * amqp_tx_rollback(amqp_connection_state_t state, amqp_channel_t channel);
 amqp_confirm_select_ok_t * amqp_confirm_select(amqp_connection_state_t state, amqp_channel_t channel);
+
+const amqp_table_t amqp_empty_table;
+const amqp_bytes_t amqp_empty_bytes;

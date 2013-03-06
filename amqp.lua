@@ -150,7 +150,8 @@ local rabbitmq = ffi.load('rabbitmq')
 amqp.ffi = ffi
 amqp.rabbitmq = rabbitmq
 
-function amqp.die_on_error(reply,message)
+function amqp.die_on_error(message,reply)
+	if not reply then reply = rabbitmq.amqp_get_rpc_reply(amqp.connection) end
         if (reply.reply_type == rabbitmq.AMQP_RESPONSE_LIBRARY_EXCEPTION or reply.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) then
 		print(message .. ": " .. ffi.string(rabbitmq.amqp_error_string(reply.library_error)))
 	end
@@ -169,7 +170,8 @@ function amqp.connect(url)
 		amqp.info.vhost = ffi.new('char[?]',1)
 		ffi.copy(amqp.info.vhost,"/")
 	end
-	amqp.die_on_error(rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password), "Failed to login")
+	amqp.die_on_error("Failed to login",
+		rabbitmq.amqp_login(amqp.connection, amqp.info.vhost,0,131072,0,0,amqp.info.user,amqp.info.password))
 	amqp.channel = 1
 	rabbitmq.amqp_channel_open(amqp.connection,amqp.channel)
 end
@@ -185,8 +187,49 @@ function amqp.send(exchange,routing_key,message)
 	rabbitmq.amqp_basic_publish(amqp.connection,amqp.channel,ex_buffer,rk_buffer,0,0,props,msg_buffer)
 end
 
+function amqp.receive(exchange,routing_key,queue,kind)
+	if queue then Q = rabbitmq.amqp_cstring_bytes(queue) else Q = rabbitmq.amqp_empty_bytes end
+	if routing_key then R = rabbitmq.amqp_cstring_bytes(routing_key) else R = rabbitmq.amqp_empty_bytes end
+	if exchange  then E = rabbitmq.amqp_cstring_bytes(exchange) else E = rabbitmq.amqp_empty_bytes end
+	if kind then K = rabbitmq.amqp_cstring_bytes(kind) else K = rabbitmq.amqp_cstring_bytes("topic") end
+	resp = rabbitmq.amqp_exchange_declare(amqp.connection, amqp.channel, E, K, 0, 0, rabbitmq.amqp_empty_table)
+	resp = rabbitmq.amqp_queue_declare(amqp.connection, amqp.channel, Q, 0, 0, 0, 1,rabbitmq.amqp_empty_table)
+	amqp.die_on_error("Failed to declare queue")
+	amqp.queue = ffi.string(resp.queue.bytes)
+	print("Binding " .. queue .. " -> " .. routing_key .. " on " .. exchange)
+	rabbitmq.amqp_queue_bind(amqp.connection,amqp.channel,Q,E,R,rabbitmq.amqp_empty_table)
+	amqp.die_on_error("Failed to bind queue")
+	rabbitmq.amqp_basic_consume(amqp.connection, amqp.channel, Q, rabbitmq.amqp_empty_bytes, 0, 1, 0, rabbitmq.amqp_empty_table)
+	amqp.die_on_error("Failed to register consumer");
+end
+
+function amqp.wait(fun)
+	frame = ffi.new('struct amqp_frame_t_')	
+	while true do
+		rabbitmq.amqp_maybe_release_buffers(amqp.connection)					-- possibly free some memory
+		result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)
+		if result < 0 then return end 								-- error 
+    		if not frame.frame_type == amqp.AMQP_FRAME_METHOD then goto continue end
+		if not frame.payload.method.id == amqp.AMQP_BASIC_DELIVER_METHOD then goto continue end
+		result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)			-- wait again for header
+		if result < 0 then return end								-- error
+		if not frame.frame_type == amqp.AMQP_FRAME_HEADER then return end			-- missing header
+		target = frame.payload.properties.body_size
+		received = 0
+		while received < target do
+			result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)		-- wait for content
+			if result < 0 then return end							-- error
+      			if not frame.frame_type == amqp.AMQP_FRAME_BODY then return end			-- missing body
+			received = received + frame.payload.body_fragment.len
+			fun(ffi.string(frame.payload.body_fragment.bytes, frame.payload.body_fragment.len))
+		end
+		received = received + 1
+		::continue::
+	end
+end
+
 function amqp.disconnect()
-	rabbitmq.amqp_channel_close(amqp.connection, 1, amqp.AMQP_REPLY_SUCCESS)
+	rabbitmq.amqp_channel_close(amqp.connection, amqp.channel, amqp.AMQP_REPLY_SUCCESS)
   	rabbitmq.amqp_connection_close(amqp.connection, amqp.AMQP_REPLY_SUCCESS)
   	rabbitmq.amqp_destroy_connection(amqp.connection)
 end
