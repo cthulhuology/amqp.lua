@@ -35,6 +35,6 @@ amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
 amqp.receive(arg[1],arg[2],arg[3])
 
 while true do
-	amqp.wait(function(x) print("[" .. x .. "]") end)
+	amqp.wait(function(x) print("[" .. x .. "]") end, 1000)
 end
 

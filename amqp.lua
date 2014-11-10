@@ -647,6 +647,13 @@ typedef struct {
 	char dummy;
 } amqp_confirm_properties_t;
 
+typedef long time_t;
+
+typedef struct timeval {
+  time_t tv_sec;
+  time_t tv_usec;
+} timeval;
+
 // AMQP methods
 
 char const * amqp_version(void);
@@ -675,6 +682,7 @@ int amqp_open_socket(char const *hostname, int portnumber);
 int amqp_send_header(amqp_connection_state_t state);
 amqp_boolean_t amqp_frames_enqueued(amqp_connection_state_t state);
 int amqp_simple_wait_frame(amqp_connection_state_t state, amqp_frame_t *decoded_frame);
+int amqp_simple_wait_frame_noblock(amqp_connection_state_t state, amqp_frame_t *decoded_frame, timeval * tv);
 int amqp_simple_wait_method(amqp_connection_state_t state, amqp_channel_t expected_channel, amqp_method_number_t expected_method, amqp_method_t *output);
 int amqp_send_method(amqp_connection_state_t state, amqp_channel_t channel, amqp_method_number_t id, void *decoded);
 amqp_rpc_reply_t amqp_simple_rpc(amqp_connection_state_t state, amqp_channel_t channel, amqp_method_number_t request_id, amqp_method_number_t *expected_reply_ids, void *decoded_request_method);
@@ -783,21 +791,34 @@ function amqp.receive(exchange,routing_key,queue,kind)
 	amqp.die_on_error("Failed to register consumer");
 end
 
-function amqp.wait(fun)
-	frame = ffi.new('struct amqp_frame_t_')	
+-- timeout_ms (optional argument)
+--   - 0 -> non-blocking read
+--   - nil -> block forever
+--   - otherwise, timeout after timeout_ms
+function amqp.wait(fun, timeout_ms)
+	timeout_ms = timeout_ms or nil
+	local frame = ffi.new('struct amqp_frame_t_')
+	local timeout
+	if timeout_ms then
+		timeout = ffi.new("timeval",
+			{tv_sec=timeout_ms/1000, tv_usec=(timeout_ms%1000)*1000})
+	else
+		timeout = nil
+	end
+
 	while true do
 		rabbitmq.amqp_maybe_release_buffers(amqp.connection)					-- possibly free some memory
-		result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)
+		local result = rabbitmq.amqp_simple_wait_frame_noblock(amqp.connection, frame, timeout)
 		if result < 0 then return end 								-- error 
     		if not frame.frame_type == amqp.AMQP_FRAME_METHOD then goto continue end
 		if not frame.payload.method.id == amqp.AMQP_BASIC_DELIVER_METHOD then goto continue end
-		result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)			-- wait again for header
+		result = rabbitmq.amqp_simple_wait_frame_noblock(amqp.connection, frame, timeout)			-- wait again for header
 		if result < 0 then return end								-- error
 		if not frame.frame_type == amqp.AMQP_FRAME_HEADER then return end			-- missing header
-		target = frame.payload.properties.body_size
-		received = 0
+		local target = frame.payload.properties.body_size
+		local received = 0
 		while received < target do
-			result = rabbitmq.amqp_simple_wait_frame(amqp.connection, frame)		-- wait for content
+			result = rabbitmq.amqp_simple_wait_frame_noblock(amqp.connection, frame, timeout)		-- wait for content
 			if result < 0 then return end							-- error
       			if not frame.frame_type == amqp.AMQP_FRAME_BODY then return end			-- missing body
 			received = received + frame.payload.body_fragment.len
