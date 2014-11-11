@@ -30,11 +30,24 @@ if #arg < 3 then
 	os.exit()
 end
 
-amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
+local res = amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
+if res < 0 then
+	print('connect failed, ' .. amqp.error_string(res))
+	os.exit()
+end
 
-amqp.receive(arg[1],arg[2],arg[3])
+res = amqp.receive(arg[1],arg[2],arg[3])
+if res < 0 then
+	print('receive failed, ' .. amqp.error_string(res))
+	os.exit()
+end
 
 while true do
-	amqp.wait(function(x) print("[" .. x .. "]") end, 1000)
+	local r = amqp.wait(function(x) print("[" .. x .. "]") end, 1000)
+	if (r < 0 and r ~= amqp.AMQP_STATUS_TIMEOUT) then
+		print('wait failed, ' .. amqp.error_string(r))
+		amqp.disconnect()
+		os.exit()
+	end
 end
 

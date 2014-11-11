@@ -34,8 +34,16 @@ else
 	message = arg[3]	-- assume we're getting it on the command line
 end
 
-amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
+local res = amqp.connect('amqp://guest:guest@127.0.0.1:5672/')
+if res < 0 then
+	print('connect failed, ' .. amqp.error_string(res))
+	os.exit()
+end
 
-amqp.send(arg[1],arg[2],message)
+res = amqp.send(arg[1],arg[2],message)
+if res < 0 then
+	print('send failed, ' .. amqp.error_string(res))
+	os.exit()
+end
 
 amqp.disconnect()
