@@ -755,7 +755,7 @@ const amqp_table_t amqp_empty_table;
 const amqp_bytes_t amqp_empty_bytes;
 ]])
 
-local rabbitmq = ffi.load('rabbitmq')
+local rabbitmq = ffi.load('rabbitmq.so.1')
 
 amqp.ffi = ffi
 amqp.rabbitmq = rabbitmq
